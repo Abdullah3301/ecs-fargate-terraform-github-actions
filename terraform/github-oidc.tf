@@ -2,7 +2,7 @@
 variable "github_repo" {
   description = "owner/repo allowed to assume the deploy role"
   type        = string
-  default     = "Abdullah3301/ecs-fargate-terraform-github-actions"
+  default     = "Abdullah3301@190213076/ecs-fargate-terraform-github-actions@1429016655"
 }
 
 # Fetch GitHub's live TLS certificate chain at apply time
@@ -72,8 +72,11 @@ resource "aws_iam_role_policy" "github_actions" {
       },
       {
         # Read the current task definition and register a new version of it
+        # Read the current task definition and register a new version of it.
+        # TagResource is required because the task definition carries tags,
+        # which the new revision inherits.
         Effect   = "Allow"
-        Action   = ["ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition"]
+        Action   = ["ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition", "ecs:TagResource"]
         Resource = "*"
       },
       {
