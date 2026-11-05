@@ -6,12 +6,9 @@ output "app_url" {
   description = "Open this in your browser"
   value       = "http://${aws_lb.main.dns_name}"
 }
-
-
-
-
-
-
-
+output "github_actions_role_arn" {
+  description = "Paste this into the GitHub workflow"
+  value       = aws_iam_role.github_actions.arn
+}
 
 

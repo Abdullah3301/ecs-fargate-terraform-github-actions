@@ -1,0 +1,83 @@
+name: Deploy to ECS
+
+# WHEN this runs: on a push to main that touches app code or this file.
+# Changes to README or terraform/ won't trigger a deploy, which saves time and money.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:   # also lets you run it by hand from the Actions tab
+
+# PERMISSIONS for this run
+permissions:
+  id-token: write   # REQUIRED: lets the run request the OIDC token from GitHub
+  contents: read    # lets it check out your code
+
+# Values reused below. Replace ACCOUNT_ID with your 12-digit number.
+env:
+  AWS_REGION: us-east-1
+  ROLE_ARN: arn:aws:iam::ACCOUNT_ID:role/ecs-demo-github-actions
+  CLUSTER: ecs-demo-cluster
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest   # GitHub gives us a fresh Linux machine
+
+    # Run the same steps twice, once per service, in parallel
+    strategy:
+      matrix:
+        include:
+          - service: frontend
+            container: frontend
+            path: ./frontend
+          - service: backend
+            container: backend
+            path: ./backend
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      # The OIDC exchange: trades GitHub's signed token for temporary AWS credentials
+      - name: Log in to AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Tag the image with the commit SHA, so every image traces to exact code
+      - name: Build and push the image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPO: ecs-demo-${{ matrix.service }}
+          TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY/$REPO:$TAG ${{ matrix.path }}
+          docker push $REGISTRY/$REPO:$TAG
+          echo "image=$REGISTRY/$REPO:$TAG" >> $GITHUB_OUTPUT
+        id: build
+
+      # Take the task definition ECS is using now and swap in the new image
+      - name: Update the task definition
+        id: taskdef
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: ecs-demo-${{ matrix.service }}
+          container-name: ${{ matrix.container }}
+          image: ${{ steps.build.outputs.image }}
+
+      # Register it and roll it out, waiting until the new tasks are healthy
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.taskdef.outputs.task-definition }}
+          service: ecs-demo-${{ matrix.service }}
+          cluster: ${{ env.CLUSTER }}
+          wait-for-service-stability: true
