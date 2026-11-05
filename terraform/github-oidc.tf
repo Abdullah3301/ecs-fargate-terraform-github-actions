@@ -5,12 +5,20 @@ variable "github_repo" {
   default     = "Abdullah3301/ecs-fargate-terraform-github-actions"
 }
 
-# 1. IDENTITY PROVIDER: teach AWS to trust tokens signed by GitHub Actions
-resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+# Fetch GitHub's live TLS certificate chain at apply time
+data "tls_certificate" "github" {
+  url = "https://token.actions.githubusercontent.com"
 }
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+
+  # Every fingerprint in the chain, computed now rather than hardcoded,
+  # so it can't go stale when GitHub rotates certificates
+  thumbprint_list = [for c in data.tls_certificate.github.certificates : c.sha1_fingerprint]
+}
+
 
 # 2. THE ROLE GitHub assumes, with a trust policy that pins it to your repo and branch
 resource "aws_iam_role" "github_actions" {
