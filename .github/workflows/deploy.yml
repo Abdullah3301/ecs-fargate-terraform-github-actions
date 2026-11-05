@@ -19,9 +19,8 @@ permissions:
 # Values reused below. Replace ACCOUNT_ID with your 12-digit number.
 env:
   AWS_REGION: us-east-1
-  ROLE_ARN: arn:aws:iam::ACCOUNT_ID:role/ecs-demo-github-actions
+  ROLE_ARN: arn:aws:iam::AWS_ACCOUNT_ID:role/ecs-demo-github-actions
   CLUSTER: ecs-demo-cluster
-
 jobs:
   deploy:
     runs-on: ubuntu-latest   # GitHub gives us a fresh Linux machine
