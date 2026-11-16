@@ -16,10 +16,8 @@ permissions:
   id-token: write   # REQUIRED: lets the run request the OIDC token from GitHub
   contents: read    # lets it check out your code
 
-# Values reused below. Replace ACCOUNT_ID with your 12-digit number.
-env:
+# Values reused below. The role ARN lives in a repository secret, not here.env:
   AWS_REGION: us-east-1
-  ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
   CLUSTER: ecs-demo-cluster
 jobs:
   deploy:
@@ -40,26 +38,13 @@ jobs:
       - name: Check out the code
         uses: actions/checkout@v4
 
-      - name: Show what GitHub thinks this run is
-        run: |
-          echo "repository: ${{ github.repository }}"
-          echo "ref:        ${{ github.ref }}"
-          echo "event:      ${{ github.event_name }}"
-          echo "expected sub: repo:${{ github.repository }}:ref:${{ github.ref }}"
-
-          
-      - name: Decode the OIDC token
-        run: |
-          TOKEN=$(curl -sH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq '{sub, aud, iss, repository}'
-
       # The OIDC exchange: trades GitHub's signed token for temporary AWS credentials
       - name: Log in to AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
 
       - name: Log in to ECR
         id: ecr
